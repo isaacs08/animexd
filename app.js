@@ -20,9 +20,13 @@ function getInitialPlayerMode() {
   const configuredMode = String(CONFIG.PLAYER_MODE || "auto").toLowerCase();
 
   if (configuredMode === "drive") return "drive";
-  if (configuredMode === "native") return "native";
+  if (configuredMode === "native" && isNativePlayerAllowed()) return "native";
 
   return "drive";
+}
+
+function isNativePlayerAllowed() {
+  return String(CONFIG.PLAYER_MODE || "auto").toLowerCase() === "native";
 }
 
 function isProbablyMobileOrTablet() {
@@ -97,6 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
   dom.nextEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(1));
 
   dom.togglePlayerBtn.addEventListener("click", () => {
+    if (!isNativePlayerAllowed()) {
+      showTemporaryStatus("Drive preview esta activo por estabilidad. El reproductor nativo directo de Drive esta desactivado.");
+      return;
+    }
+
     state.autoSelectedPlayer = false;
     state.playerMode = state.playerMode === "native" ? "drive" : "native";
     updatePlayerModeButton();
@@ -539,9 +548,10 @@ function createEpisodeCard(video) {
 function playVideo(video, keepScroll = false, options = {}) {
   state.currentVideo = video;
 
-  if (state.playerMode === "native") {
+  if (state.playerMode === "native" && isNativePlayerAllowed()) {
     useNativeVideo(video);
   } else {
+    state.playerMode = "drive";
     useDriveIframe(video);
   }
 
@@ -637,6 +647,14 @@ function updateEpisodeControls() {
 
 function updatePlayerModeButton() {
   if (!dom.togglePlayerBtn) return;
+
+  if (!isNativePlayerAllowed()) {
+    dom.togglePlayerBtn.textContent = "Drive preview activo";
+    dom.togglePlayerBtn.disabled = true;
+    return;
+  }
+
+  dom.togglePlayerBtn.disabled = false;
 
   const currentLabel = state.playerMode === "native"
     ? "Movil nativo"

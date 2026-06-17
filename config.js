@@ -28,8 +28,8 @@ window.ANIMEXD_CONFIG = {
   // se mostrarán dentro de una sección llamada "Sin serie".
   SHOW_DIRECT_ROOT_FILES: true,
 
-  // "auto": usa Drive preview por defecto para mayor estabilidad.
+  // "auto": usa Drive preview y desactiva el reproductor nativo directo.
   // "drive": fuerza el iframe de Google Drive.
-  // "native": fuerza el reproductor HTML5.
+  // "native": fuerza el reproductor HTML5 directo de Drive.
   PLAYER_MODE: "auto"
 };

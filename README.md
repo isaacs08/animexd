@@ -175,15 +175,15 @@ Usa este proyecto solo con videos propios o contenido que tengas permiso de comp
 
 ## Reproductor móvil
 
-La app mantiene disponible un reproductor HTML5 `<video>` alimentado por Google Drive API:
+La app puede usar un reproductor HTML5 `<video>` alimentado por Google Drive API si cambias `PLAYER_MODE` a `"native"`:
 
 ```text
 https://www.googleapis.com/drive/v3/files/FILE_ID?alt=media&key=API_KEY
 ```
 
-Esto puede mejorar la compatibilidad con pantalla completa en celulares, especialmente iPhone, pero algunos archivos de Drive pueden fallar en modo nativo.
+Esto puede mejorar la compatibilidad con pantalla completa en celulares, especialmente iPhone, pero algunos archivos de Drive pueden fallar en modo nativo con errores de acceso del endpoint directo.
 
-Si algún archivo no carga en el reproductor nativo, la app cambia automáticamente al reproductor de vista previa de Google Drive. También puedes cambiar manualmente con el botón "Usar Drive preview" / "Usar reproductor móvil".
+Por estabilidad, `PLAYER_MODE: "auto"` usa Drive preview y no intenta cargar el enlace directo `alt=media`.
 
 
 ## Modo automático de reproductor
@@ -197,4 +197,4 @@ PC / laptop: usa Drive preview.
 Celular / tablet: usa Drive preview por estabilidad.
 ```
 
-También queda disponible un botón manual para cambiar entre ambos reproductores.
+Si necesitas probar el reproductor nativo directo, cambia temporalmente `PLAYER_MODE` a `"native"` en `config.js`.
