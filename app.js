@@ -91,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   dom.fullscreenBtn.addEventListener("click", enterBestFullscreen);
-  dom.expandPlayerBtn.addEventListener("click", enterBestFullscreen);
+  dom.expandPlayerBtn.addEventListener("click", expandPlayer);
   dom.exitCinemaBtn.addEventListener("click", exitCinemaMode);
   dom.prevEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(-1));
   dom.nextEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(1));
@@ -559,6 +559,7 @@ function playVideo(video, keepScroll = false, options = {}) {
 
   dom.hero.classList.remove("hidden");
   updateEpisodeControls();
+  updateFullscreenButton();
 
   document.querySelectorAll(".episode-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.videoId === video.id);
@@ -653,9 +654,22 @@ function updatePlayerModeButton() {
     : "Usar reproductor movil";
 
   dom.togglePlayerBtn.textContent = `${nextAction} · actual: ${currentLabel}`;
+  updateFullscreenButton();
+}
+
+function updateFullscreenButton() {
+  if (!dom.fullscreenBtn) return;
+
+  const opensDrivePreview = state.playerMode === "drive" && isProbablyMobileOrTablet();
+  dom.fullscreenBtn.textContent = opensDrivePreview ? "Abrir pantalla Drive" : "Pantalla completa";
 }
 
 async function enterBestFullscreen() {
+  if (state.playerMode === "drive" && isProbablyMobileOrTablet() && state.currentVideo) {
+    window.location.href = getDrivePreviewUrl(state.currentVideo.id);
+    return;
+  }
+
   const video = dom.nativePlayer;
 
   if (state.playerMode === "native" && video && !video.classList.contains("hidden")) {
@@ -693,6 +707,15 @@ async function enterBestFullscreen() {
   }
 
   enterCinemaMode();
+}
+
+function expandPlayer() {
+  if (state.playerMode === "drive") {
+    enterCinemaMode();
+    return;
+  }
+
+  enterBestFullscreen();
 }
 
 function enterCinemaMode() {
