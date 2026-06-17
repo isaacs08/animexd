@@ -584,7 +584,6 @@ function useNativeVideo(video) {
   const mediaUrl = getDriveMediaUrl(video.id);
   if (dom.nativePlayer.src !== mediaUrl) {
     dom.nativePlayer.src = mediaUrl;
-    dom.nativePlayer.load();
   }
 }
 
@@ -593,7 +592,6 @@ function useDriveIframe(video) {
   dom.playerShell.classList.add("drive-mode");
   dom.nativePlayer.pause();
   dom.nativePlayer.removeAttribute("src");
-  dom.nativePlayer.load();
   dom.nativePlayer.classList.add("hidden");
 
   dom.player.classList.remove("hidden");
@@ -605,7 +603,6 @@ function stopPlayers() {
   dom.player.classList.add("hidden");
   dom.nativePlayer.pause();
   dom.nativePlayer.removeAttribute("src");
-  dom.nativePlayer.load();
   dom.nativePlayer.classList.add("hidden");
   exitCinemaMode();
 }
