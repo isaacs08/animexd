@@ -2,15 +2,18 @@ const CONFIG = window.ANIMEXD_CONFIG || {};
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const VIDEO_EXTENSIONS = [".mp4", ".m4v", ".webm", ".mov", ".mkv"];
+const HISTORY_KEY = "animexd.watchHistory.v1";
 
 const state = {
   series: [],
   flatVideos: [],
   currentVideo: null,
-  activeSeries: "all",
+  activeSeries: null,
   query: "",
   playerMode: getInitialPlayerMode(),
-  autoSelectedPlayer: true
+  autoSelectedPlayer: true,
+  route: { view: "home", seriesSlug: "" },
+  watchHistory: loadWatchHistory()
 };
 
 function getInitialPlayerMode() {
@@ -43,6 +46,8 @@ const dom = {
   exitCinemaBtn: document.getElementById("exitCinemaBtn"),
   fullscreenBtn: document.getElementById("fullscreenBtn"),
   togglePlayerBtn: document.getElementById("togglePlayerBtn"),
+  prevEpisodeBtn: document.getElementById("prevEpisodeBtn"),
+  nextEpisodeBtn: document.getElementById("nextEpisodeBtn"),
   nowPlayingSeries: document.getElementById("nowPlayingSeries"),
   nowPlayingTitle: document.getElementById("nowPlayingTitle"),
   nowPlayingMeta: document.getElementById("nowPlayingMeta"),
@@ -58,9 +63,11 @@ document.addEventListener("DOMContentLoaded", () => {
   dom.appTitle.textContent = CONFIG.APP_TITLE || "AnimeXD";
   document.title = CONFIG.APP_TITLE || "AnimeXD";
 
+  dom.appTitle.closest(".brand")?.addEventListener("click", () => goHome());
+
   dom.searchInput.addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLowerCase();
-    renderLibrary();
+    renderCurrentView();
   });
 
   dom.reloadBtn.addEventListener("click", () => loadLibrary());
@@ -86,6 +93,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   dom.fullscreenBtn.addEventListener("click", enterBestFullscreen);
   dom.exitCinemaBtn.addEventListener("click", exitCinemaMode);
+  dom.prevEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(-1));
+  dom.nextEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(1));
 
   dom.togglePlayerBtn.addEventListener("click", () => {
     state.autoSelectedPlayer = false;
@@ -93,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePlayerModeButton();
 
     if (state.currentVideo) {
-      playVideo(state.currentVideo, true);
+      playVideo(state.currentVideo, true, { skipHistory: true });
     }
   });
 
@@ -102,8 +111,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.playerMode = "drive";
     updatePlayerModeButton();
-    playVideo(state.currentVideo, true);
-    showTemporaryStatus("El reproductor nativo no pudo cargar este archivo. Cambié automáticamente a Drive preview.");
+    playVideo(state.currentVideo, true, { skipHistory: true });
+    showTemporaryStatus("El reproductor nativo no pudo cargar este archivo. Cambie automaticamente a Drive preview.");
   });
 
   document.addEventListener("keydown", (event) => {
@@ -112,6 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  window.addEventListener("hashchange", handleRouteChange);
   document.addEventListener("fullscreenchange", syncFullscreenUI);
   document.addEventListener("webkitfullscreenchange", syncFullscreenUI);
 
@@ -125,7 +135,7 @@ async function loadLibrary() {
   try {
     validateConfig();
 
-    setStatus("Cargando carpetas y capítulos desde Google Drive...");
+    setStatus("Cargando carpetas y capitulos desde Google Drive...");
 
     const rootItems = await listDriveChildren(CONFIG.ROOT_FOLDER_ID);
     const folders = rootItems
@@ -134,7 +144,7 @@ async function loadLibrary() {
 
     const directVideos = rootItems
       .filter(isVideoFile)
-      .map((file) => toVideoItem(file, "Sin serie"))
+      .map((file) => toVideoItem(file, "Sin serie", "sin-serie"))
       .sort(byEpisode);
 
     const series = [];
@@ -143,22 +153,25 @@ async function loadLibrary() {
       series.push({
         id: "direct-root-files",
         name: "Sin serie",
+        slug: "sin-serie",
         folderId: CONFIG.ROOT_FOLDER_ID,
         videos: directVideos
       });
     }
 
     for (const folder of folders) {
+      const seriesSlug = slugify(folder.name);
       const children = await listDriveChildren(folder.id);
       const videos = children
         .filter(isVideoFile)
-        .map((file) => toVideoItem(file, folder.name))
+        .map((file) => toVideoItem(file, folder.name, seriesSlug))
         .sort(byEpisode);
 
       if (videos.length > 0) {
         series.push({
           id: folder.id,
           name: folder.name,
+          slug: seriesSlug,
           folderId: folder.id,
           videos
         });
@@ -170,17 +183,15 @@ async function loadLibrary() {
 
     if (state.flatVideos.length === 0) {
       setError(`
-        No encontré videos en la carpeta.
+        No encontre videos en la carpeta.
         Revisa que la carpeta principal tenga subcarpetas con archivos MP4
-        y que todo esté compartido como "cualquier persona con el enlace puede ver".
+        y que todo este compartido como "cualquier persona con el enlace puede ver".
       `);
       return;
     }
 
     hideStatus();
-    renderSeriesNav();
-    renderLibrary();
-    playVideo(state.flatVideos[0]);
+    handleRouteChange();
   } catch (error) {
     console.error(error);
     setError(formatFriendlyError(error));
@@ -245,8 +256,8 @@ function isVideoFile(file) {
   return hasVideoMime || hasVideoExtension;
 }
 
-function toVideoItem(file, seriesName) {
-  const cleanTitle = removeVideoExtension(file.name || "Sin título");
+function toVideoItem(file, seriesName, seriesSlug) {
+  const cleanTitle = removeVideoExtension(file.name || "Sin titulo");
   const episodeNumber = extractEpisodeNumber(cleanTitle);
 
   return {
@@ -254,6 +265,7 @@ function toVideoItem(file, seriesName) {
     name: file.name,
     title: cleanTitle,
     seriesName,
+    seriesSlug,
     episodeNumber,
     mimeType: file.mimeType,
     modifiedTime: file.modifiedTime,
@@ -265,7 +277,7 @@ function toVideoItem(file, seriesName) {
 function extractEpisodeNumber(name) {
   const patterns = [
     /s\d{1,2}\s*e(\d{1,4})/i,
-    /(?:ep|episodio|cap|capitulo|capítulo|chapter)[\s._-]*(\d{1,4})/i
+    /(?:ep|episodio|cap|cap.tulo|chapter)[\s._-]*(\d{1,4})/i
   ];
 
   for (const pattern of patterns) {
@@ -295,84 +307,188 @@ function byEpisode(a, b) {
   return a.title.localeCompare(b.title, "es", { numeric: true, sensitivity: "base" });
 }
 
-function renderSeriesNav() {
-  dom.seriesNav.innerHTML = "";
-
-  const allButton = createChip("Todas", "all");
-  dom.seriesNav.appendChild(allButton);
-
-  for (const serie of state.series) {
-    const chip = createChip(serie.name, serie.id);
-    dom.seriesNav.appendChild(chip);
-  }
-
-  dom.seriesNav.classList.remove("hidden");
+function handleRouteChange() {
+  state.route = parseRoute();
+  renderCurrentView();
 }
 
-function createChip(label, value) {
-  const button = document.createElement("button");
-  button.className = "series-chip";
-  button.textContent = label;
-  button.dataset.series = value;
+function parseRoute() {
+  const hash = decodeURIComponent(window.location.hash || "");
+  const match = hash.match(/^#\/serie\/([^/]+)$/);
 
-  if (state.activeSeries === value) {
-    button.classList.add("active");
+  if (match) {
+    return { view: "series", seriesSlug: match[1] };
   }
 
-  button.addEventListener("click", () => {
-    state.activeSeries = value;
-
-    document.querySelectorAll(".series-chip").forEach((chip) => {
-      chip.classList.toggle("active", chip.dataset.series === value);
-    });
-
-    renderLibrary();
-  });
-
-  return button;
+  return { view: "home", seriesSlug: "" };
 }
 
-function renderLibrary() {
-  dom.library.innerHTML = "";
+function goHome() {
+  window.location.hash = "#/";
+}
 
-  const filteredSeries = state.series
-    .filter((serie) => state.activeSeries === "all" || serie.id === state.activeSeries)
-    .map((serie) => ({
-      ...serie,
-      videos: serie.videos.filter(matchesSearch)
-    }))
-    .filter((serie) => serie.videos.length > 0);
+function openSeries(serie) {
+  window.location.hash = `#/serie/${encodeURIComponent(serie.slug)}`;
+}
 
-  if (filteredSeries.length === 0) {
-    dom.library.innerHTML = `
-      <div class="empty">
-        No encontré capítulos con ese filtro.
-      </div>
-    `;
+function renderCurrentView() {
+  if (state.flatVideos.length === 0) return;
+
+  if (state.route.view === "series") {
+    const serie = findSeriesBySlug(state.route.seriesSlug);
+
+    if (!serie) {
+      goHome();
+      return;
+    }
+
+    renderSeriesView(serie);
     return;
   }
 
-  for (const serie of filteredSeries) {
-    const section = document.createElement("section");
-    section.className = "series-section";
-    section.id = `series-${slugify(serie.name)}`;
+  renderHomeView();
+}
 
-    section.innerHTML = `
-      <div class="series-heading">
-        <h2>${escapeHtml(serie.name)}</h2>
-        <span class="series-count">${serie.videos.length} capítulo${serie.videos.length === 1 ? "" : "s"}</span>
-      </div>
-      <div class="episode-row"></div>
-    `;
+function renderHomeView() {
+  state.activeSeries = null;
+  state.currentVideo = null;
+  stopPlayers();
+  dom.hero.classList.add("hidden");
+  dom.seriesNav.classList.add("hidden");
+  dom.library.innerHTML = "";
 
-    const row = section.querySelector(".episode-row");
+  const matchingSeries = state.series.filter(matchesSeriesSearch);
+  const continueVideos = getContinueVideos().filter(matchesSearch);
 
-    for (const video of serie.videos) {
-      row.appendChild(createEpisodeCard(video));
-    }
+  if (continueVideos.length > 0) {
+    const continueSection = createShelfSection("Continuar viendo", `${continueVideos.length} reciente${continueVideos.length === 1 ? "" : "s"}`);
+    const row = continueSection.querySelector(".episode-row");
 
-    dom.library.appendChild(section);
+    continueVideos.forEach((video) => {
+      row.appendChild(createContinueCard(video));
+    });
+
+    dom.library.appendChild(continueSection);
   }
+
+  const catalogSection = document.createElement("section");
+  catalogSection.className = "series-section";
+  catalogSection.innerHTML = `
+    <div class="series-heading">
+      <h2>Catalogo</h2>
+      <span class="series-count">${matchingSeries.length} serie${matchingSeries.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="series-grid"></div>
+  `;
+
+  const grid = catalogSection.querySelector(".series-grid");
+  matchingSeries.forEach((serie) => {
+    grid.appendChild(createSeriesCard(serie));
+  });
+
+  dom.library.appendChild(catalogSection);
+
+  if (matchingSeries.length === 0 && continueVideos.length === 0) {
+    dom.library.innerHTML = `
+      <div class="empty">
+        No encontre series con ese filtro.
+      </div>
+    `;
+  }
+}
+
+function renderSeriesView(serie) {
+  state.activeSeries = serie.id;
+  dom.seriesNav.classList.remove("hidden");
+  dom.seriesNav.innerHTML = "";
+  dom.seriesNav.appendChild(createBackButton());
+
+  dom.library.innerHTML = "";
+
+  const filteredVideos = serie.videos.filter(matchesSearch);
+
+  const section = document.createElement("section");
+  section.className = "series-section";
+  section.id = `series-${serie.slug}`;
+  section.innerHTML = `
+    <div class="series-detail-heading">
+      <div>
+        <p class="eyebrow">Serie</p>
+        <h2>${escapeHtml(serie.name)}</h2>
+      </div>
+      <span class="series-count">${filteredVideos.length} capitulo${filteredVideos.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="episode-grid"></div>
+  `;
+
+  const grid = section.querySelector(".episode-grid");
+  filteredVideos.forEach((video) => {
+    grid.appendChild(createEpisodeCard(video));
+  });
+
+  dom.library.appendChild(section);
+
+  if (filteredVideos.length === 0) {
+    grid.innerHTML = `
+      <div class="empty">
+        No encontre capitulos con ese filtro.
+      </div>
+    `;
+  }
+}
+
+function createBackButton() {
+  const button = document.createElement("button");
+  button.className = "series-chip active";
+  button.textContent = "Volver al catalogo";
+  button.addEventListener("click", goHome);
+  return button;
+}
+
+function createShelfSection(title, countText) {
+  const section = document.createElement("section");
+  section.className = "series-section";
+  section.innerHTML = `
+    <div class="series-heading">
+      <h2>${escapeHtml(title)}</h2>
+      <span class="series-count">${escapeHtml(countText)}</span>
+    </div>
+    <div class="episode-row"></div>
+  `;
+  return section;
+}
+
+function createSeriesCard(serie) {
+  const card = document.createElement("article");
+  const firstVideo = serie.videos[0];
+  const watchedCount = serie.videos.filter(isWatched).length;
+
+  card.className = "series-card";
+  card.innerHTML = `
+    <div class="series-poster" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.72)), url('${firstVideo.thumbnail}')">
+      <span class="series-badge">${serie.videos.length} capitulo${serie.videos.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="card-body">
+      <p class="card-title">${escapeHtml(serie.name)}</p>
+      <p class="card-meta">${watchedCount} visto${watchedCount === 1 ? "" : "s"}</p>
+    </div>
+  `;
+
+  card.addEventListener("click", () => openSeries(serie));
+  return card;
+}
+
+function createContinueCard(video) {
+  const card = createEpisodeCard(video);
+  card.classList.add("continue-card");
+  return card;
+}
+
+function matchesSeriesSearch(serie) {
+  if (!state.query) return true;
+
+  const text = `${serie.name} ${serie.videos.map((video) => video.title).join(" ")}`.toLowerCase();
+  return text.includes(state.query);
 }
 
 function matchesSearch(video) {
@@ -392,25 +508,35 @@ function createEpisodeCard(video) {
   }
 
   const episodeText = video.episodeNumber === 999999
-    ? "Capítulo"
+    ? "Capitulo"
     : `Cap. ${video.episodeNumber}`;
+  const watchedBadge = isWatched(video) ? `<span class="watched-badge">Visto</span>` : "";
 
   card.innerHTML = `
     <div class="thumb" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.55)), url('${video.thumbnail}')">
-      <span class="play-badge">▶</span>
+      <span class="play-badge">Play</span>
+      ${watchedBadge}
     </div>
     <div class="card-body">
       <p class="card-title">${escapeHtml(video.title)}</p>
-      <p class="card-meta">${escapeHtml(episodeText)}</p>
+      <p class="card-meta">${escapeHtml(video.seriesName)} · ${escapeHtml(episodeText)}</p>
     </div>
   `;
 
-  card.addEventListener("click", () => playVideo(video));
+  card.addEventListener("click", () => {
+    if (state.route.view !== "series" || state.route.seriesSlug !== video.seriesSlug) {
+      window.location.hash = `#/serie/${encodeURIComponent(video.seriesSlug)}`;
+      setTimeout(() => playVideo(video), 0);
+      return;
+    }
+
+    playVideo(video);
+  });
 
   return card;
 }
 
-function playVideo(video, keepScroll = false) {
+function playVideo(video, keepScroll = false, options = {}) {
   state.currentVideo = video;
 
   if (state.playerMode === "native") {
@@ -419,19 +545,28 @@ function playVideo(video, keepScroll = false) {
     useDriveIframe(video);
   }
 
+  if (!options.skipHistory) {
+    markWatched(video);
+  }
+
   dom.nowPlayingSeries.textContent = video.seriesName;
   dom.nowPlayingTitle.textContent = video.title;
 
-  const episodePart = video.episodeNumber === 999999 ? "" : `Capítulo ${video.episodeNumber}`;
+  const episodePart = video.episodeNumber === 999999 ? "" : `Capitulo ${video.episodeNumber}`;
   const sizePart = video.size ? ` · ${formatBytes(video.size)}` : "";
   const modePart = state.playerMode === "native" ? " · Reproductor nativo" : " · Drive preview";
   dom.nowPlayingMeta.textContent = `${episodePart}${sizePart}${modePart}`.replace(/^ · /, "") || "Video desde Google Drive";
 
   dom.hero.classList.remove("hidden");
+  updateEpisodeControls();
 
   document.querySelectorAll(".episode-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.videoId === video.id);
   });
+
+  if (state.route.view === "series") {
+    renderWatchedBadges();
+  }
 
   if (!keepScroll) {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -462,16 +597,54 @@ function useDriveIframe(video) {
   dom.player.src = getDrivePreviewUrl(video.id);
 }
 
+function stopPlayers() {
+  dom.player.removeAttribute("src");
+  dom.player.classList.add("hidden");
+  dom.nativePlayer.pause();
+  dom.nativePlayer.removeAttribute("src");
+  dom.nativePlayer.load();
+  dom.nativePlayer.classList.add("hidden");
+  exitCinemaMode();
+}
+
+function playAdjacentEpisode(direction) {
+  if (!state.currentVideo) return;
+
+  const serie = findSeriesBySlug(state.currentVideo.seriesSlug);
+  if (!serie) return;
+
+  const currentIndex = serie.videos.findIndex((video) => video.id === state.currentVideo.id);
+  const nextVideo = serie.videos[currentIndex + direction];
+
+  if (nextVideo) {
+    playVideo(nextVideo);
+  }
+}
+
+function updateEpisodeControls() {
+  if (!state.currentVideo) {
+    dom.prevEpisodeBtn.disabled = true;
+    dom.nextEpisodeBtn.disabled = true;
+    return;
+  }
+
+  const serie = findSeriesBySlug(state.currentVideo.seriesSlug);
+  const currentIndex = serie?.videos.findIndex((video) => video.id === state.currentVideo.id) ?? -1;
+
+  dom.prevEpisodeBtn.disabled = currentIndex <= 0;
+  dom.nextEpisodeBtn.disabled = !serie || currentIndex === -1 || currentIndex >= serie.videos.length - 1;
+}
+
 function updatePlayerModeButton() {
   if (!dom.togglePlayerBtn) return;
 
   const currentLabel = state.playerMode === "native"
-    ? "Móvil nativo"
+    ? "Movil nativo"
     : "Drive preview";
 
   const nextAction = state.playerMode === "native"
     ? "Usar Drive preview"
-    : "Usar reproductor móvil";
+    : "Usar reproductor movil";
 
   dom.togglePlayerBtn.textContent = `${nextAction} · actual: ${currentLabel}`;
 }
@@ -479,7 +652,6 @@ function updatePlayerModeButton() {
 async function enterBestFullscreen() {
   const video = dom.nativePlayer;
 
-  // En iPhone, el fullscreen más confiable suele ser el del elemento <video>.
   if (state.playerMode === "native" && video && !video.classList.contains("hidden")) {
     try {
       if (typeof video.webkitEnterFullscreen === "function") {
@@ -487,7 +659,7 @@ async function enterBestFullscreen() {
         return;
       }
     } catch (error) {
-      console.warn("webkitEnterFullscreen falló, probando alternativas.", error);
+      console.warn("webkitEnterFullscreen fallo, probando alternativas.", error);
     }
 
     try {
@@ -496,7 +668,7 @@ async function enterBestFullscreen() {
         return;
       }
     } catch (error) {
-      console.warn("requestFullscreen en video falló, probando contenedor.", error);
+      console.warn("requestFullscreen en video fallo, probando contenedor.", error);
     }
   }
 
@@ -511,7 +683,7 @@ async function enterBestFullscreen() {
       return;
     }
   } catch (error) {
-    console.warn("Fullscreen del contenedor falló, usando modo cine.", error);
+    console.warn("Fullscreen del contenedor fallo, usando modo cine.", error);
   }
 
   enterCinemaMode();
@@ -535,6 +707,66 @@ function syncFullscreenUI() {
   if (!isFullscreen) {
     exitCinemaMode();
   }
+}
+
+function markWatched(video) {
+  const entry = {
+    id: video.id,
+    watchedAt: Date.now()
+  };
+
+  state.watchHistory = [
+    entry,
+    ...state.watchHistory.filter((item) => item.id !== video.id)
+  ].slice(0, 50);
+
+  saveWatchHistory();
+}
+
+function isWatched(video) {
+  return state.watchHistory.some((item) => item.id === video.id);
+}
+
+function getContinueVideos() {
+  return state.watchHistory
+    .map((entry) => state.flatVideos.find((video) => video.id === entry.id))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function loadWatchHistory() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(stored) ? stored.filter((item) => item?.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveWatchHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(state.watchHistory));
+  } catch {
+    // Si el navegador bloquea localStorage, la app sigue funcionando sin historial.
+  }
+}
+
+function renderWatchedBadges() {
+  document.querySelectorAll(".episode-card").forEach((card) => {
+    const video = state.flatVideos.find((item) => item.id === card.dataset.videoId);
+    const thumb = card.querySelector(".thumb");
+
+    if (!video || !thumb || thumb.querySelector(".watched-badge") || !isWatched(video)) return;
+
+    const badge = document.createElement("span");
+    badge.className = "watched-badge";
+    badge.textContent = "Visto";
+    thumb.appendChild(badge);
+  });
+}
+
+function findSeriesBySlug(slug) {
+  return state.series.find((serie) => serie.slug === slug);
 }
 
 function getDrivePreviewUrl(fileId) {
@@ -587,17 +819,12 @@ function resetUI() {
   state.series = [];
   state.flatVideos = [];
   state.currentVideo = null;
-  state.activeSeries = "all";
+  state.activeSeries = null;
 
-  dom.player.removeAttribute("src");
-  dom.nativePlayer.pause();
-  dom.nativePlayer.removeAttribute("src");
-  dom.nativePlayer.load();
-
+  stopPlayers();
   dom.hero.classList.add("hidden");
   dom.seriesNav.classList.add("hidden");
   dom.library.innerHTML = "";
-  exitCinemaMode();
   setStatus("Cargando biblioteca desde Google Drive...");
 }
 
@@ -606,23 +833,23 @@ function formatFriendlyError(error) {
 
   if (message.includes("API key not valid")) {
     return `
-      La API key no es válida.
+      La API key no es valida.
       Revisa que la hayas pegado bien en config.js.
     `;
   }
 
   if (message.includes("API has not been used") || message.includes("disabled")) {
     return `
-      La Google Drive API no está activada para tu proyecto.
-      Actívala en Google Cloud Console y vuelve a probar.
+      La Google Drive API no esta activada para tu proyecto.
+      Activala en Google Cloud Console y vuelve a probar.
     `;
   }
 
   if (message.includes("The caller does not have permission") || message.includes("insufficient")) {
     return `
       No tengo permiso para leer esa carpeta.
-      Revisa que la carpeta y los videos estén compartidos como "Cualquier persona con el enlace puede ver".
-      También revisa que la API key permita usar Google Drive API.
+      Revisa que la carpeta y los videos esten compartidos como "Cualquier persona con el enlace puede ver".
+      Tambien revisa que la API key permita usar Google Drive API.
     `;
   }
 
@@ -650,7 +877,7 @@ function slugify(text) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
+    .replace(/(^-|-$)+/g, "") || "serie";
 }
 
 function escapeHtml(value) {
