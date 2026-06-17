@@ -28,7 +28,7 @@ window.ANIMEXD_CONFIG = {
   // se mostrarán dentro de una sección llamada "Sin serie".
   SHOW_DIRECT_ROOT_FILES: true,
 
-  // "auto": PC usa Drive preview; celular/tablet usa reproductor nativo.
+  // "auto": usa Drive preview por defecto para mayor estabilidad.
   // "drive": fuerza el iframe de Google Drive.
   // "native": fuerza el reproductor HTML5.
   PLAYER_MODE: "auto"

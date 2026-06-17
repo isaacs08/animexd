@@ -22,7 +22,7 @@ function getInitialPlayerMode() {
   if (configuredMode === "drive") return "drive";
   if (configuredMode === "native") return "native";
 
-  return isProbablyMobileOrTablet() ? "native" : "drive";
+  return "drive";
 }
 
 function isProbablyMobileOrTablet() {
