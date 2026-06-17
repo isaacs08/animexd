@@ -42,9 +42,9 @@ const dom = {
   nativePlayer: document.getElementById("nativePlayer"),
   player: document.getElementById("videoPlayer"),
   exitCinemaBtn: document.getElementById("exitCinemaBtn"),
-  expandPlayerBtn: document.getElementById("expandPlayerBtn"),
   fullscreenBtn: document.getElementById("fullscreenBtn"),
-  togglePlayerBtn: document.getElementById("togglePlayerBtn"),
+  mobilePlayerBtn: document.getElementById("mobilePlayerBtn"),
+  drivePlayerBtn: document.getElementById("drivePlayerBtn"),
   prevEpisodeBtn: document.getElementById("prevEpisodeBtn"),
   nextEpisodeBtn: document.getElementById("nextEpisodeBtn"),
   nowPlayingSeries: document.getElementById("nowPlayingSeries"),
@@ -54,7 +54,6 @@ const dom = {
   seriesNav: document.getElementById("seriesNav"),
   searchInput: document.getElementById("searchInput"),
   reloadBtn: document.getElementById("reloadBtn"),
-  openDriveBtn: document.getElementById("openDriveBtn"),
   copyLinkBtn: document.getElementById("copyLinkBtn")
 };
 
@@ -71,11 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   dom.reloadBtn.addEventListener("click", () => loadLibrary());
 
-  dom.openDriveBtn.addEventListener("click", () => {
-    if (!state.currentVideo) return;
-    window.open(getDriveViewUrl(state.currentVideo.id), "_blank", "noopener,noreferrer");
-  });
-
   dom.copyLinkBtn.addEventListener("click", async () => {
     if (!state.currentVideo) return;
 
@@ -91,28 +85,32 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   dom.fullscreenBtn.addEventListener("click", enterBestFullscreen);
-  dom.expandPlayerBtn.addEventListener("click", expandPlayer);
   dom.exitCinemaBtn.addEventListener("click", exitCinemaMode);
   dom.prevEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(-1));
   dom.nextEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(1));
 
-  dom.togglePlayerBtn.addEventListener("click", () => {
+  dom.mobilePlayerBtn.addEventListener("click", () => {
+    setPlayerMode("native");
+  });
+
+  dom.drivePlayerBtn.addEventListener("click", () => {
+    setPlayerMode("drive");
+  });
+
+  function setPlayerMode(mode) {
     state.autoSelectedPlayer = false;
-    state.playerMode = state.playerMode === "native" ? "drive" : "native";
+    state.playerMode = mode;
     updatePlayerModeButton();
 
     if (state.currentVideo) {
       playVideo(state.currentVideo, true, { skipHistory: true });
     }
-  });
+  }
 
   dom.nativePlayer.addEventListener("error", () => {
     if (state.playerMode !== "native" || !state.currentVideo) return;
 
-    state.playerMode = "drive";
-    updatePlayerModeButton();
-    playVideo(state.currentVideo, true, { skipHistory: true });
-    showTemporaryStatus("El reproductor nativo no pudo cargar este archivo. Cambie automaticamente a Drive preview.");
+    showTemporaryStatus("El reproductor movil no pudo cargar este archivo. Prueba la opcion Drive.");
   });
 
   document.addEventListener("keydown", (event) => {
@@ -641,35 +639,19 @@ function updateEpisodeControls() {
 }
 
 function updatePlayerModeButton() {
-  if (!dom.togglePlayerBtn) return;
+  if (!dom.mobilePlayerBtn || !dom.drivePlayerBtn) return;
 
-  dom.togglePlayerBtn.disabled = false;
-
-  const currentLabel = state.playerMode === "native"
-    ? "Movil nativo"
-    : "Drive preview";
-
-  const nextAction = state.playerMode === "native"
-    ? "Usar Drive preview"
-    : "Usar reproductor movil";
-
-  dom.togglePlayerBtn.textContent = `${nextAction} · actual: ${currentLabel}`;
-  updateFullscreenButton();
+  dom.mobilePlayerBtn.classList.toggle("active", state.playerMode === "native");
+  dom.drivePlayerBtn.classList.toggle("active", state.playerMode === "drive");
 }
 
 function updateFullscreenButton() {
   if (!dom.fullscreenBtn) return;
 
-  const opensDrivePreview = state.playerMode === "drive" && isProbablyMobileOrTablet();
-  dom.fullscreenBtn.textContent = opensDrivePreview ? "Abrir pantalla Drive" : "Pantalla completa";
+  dom.fullscreenBtn.textContent = "Pantalla completa";
 }
 
 async function enterBestFullscreen() {
-  if (state.playerMode === "drive" && isProbablyMobileOrTablet() && state.currentVideo) {
-    window.location.href = getDrivePreviewUrl(state.currentVideo.id);
-    return;
-  }
-
   const video = dom.nativePlayer;
 
   if (state.playerMode === "native" && video && !video.classList.contains("hidden")) {
@@ -707,15 +689,6 @@ async function enterBestFullscreen() {
   }
 
   enterCinemaMode();
-}
-
-function expandPlayer() {
-  if (state.playerMode === "drive") {
-    enterCinemaMode();
-    return;
-  }
-
-  enterBestFullscreen();
 }
 
 function enterCinemaMode() {

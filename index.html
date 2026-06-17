@@ -32,29 +32,36 @@
     </section>
 
     <section id="hero" class="hero hidden">
-      <div class="player-shell" id="playerShell">
-        <video
-          id="nativePlayer"
-          class="native-player hidden"
-          title="Reproductor AnimeXD"
-          controls
-          playsinline
-          webkit-playsinline
-          preload="metadata">
-        </video>
+      <div class="player-area">
+        <div class="player-mode-tabs" aria-label="Seleccionar reproductor">
+          <button id="mobilePlayerBtn" class="player-mode-tab" type="button">Móvil</button>
+          <button id="drivePlayerBtn" class="player-mode-tab" type="button">Drive</button>
+        </div>
 
-        <iframe
-          id="videoPlayer"
-          class="drive-player hidden"
-          title="Reproductor AnimeXD Drive"
-          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-          allowfullscreen
-          webkitallowfullscreen
-          mozallowfullscreen
-          loading="lazy">
-        </iframe>
+        <div class="player-shell" id="playerShell">
+          <video
+            id="nativePlayer"
+            class="native-player hidden"
+            title="Reproductor AnimeXD"
+            controls
+            playsinline
+            webkit-playsinline
+            preload="metadata">
+          </video>
 
-        <button id="exitCinemaBtn" class="exit-cinema hidden">Salir</button>
+          <iframe
+            id="videoPlayer"
+            class="drive-player hidden"
+            title="Reproductor AnimeXD Drive"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowfullscreen
+            webkitallowfullscreen
+            mozallowfullscreen
+            loading="lazy">
+          </iframe>
+
+          <button id="exitCinemaBtn" class="exit-cinema hidden">Salir</button>
+        </div>
       </div>
 
       <div class="hero-info">
@@ -64,11 +71,8 @@
         <div class="hero-buttons">
           <button id="prevEpisodeBtn" class="secondary-btn">Anterior</button>
           <button id="nextEpisodeBtn" class="secondary-btn">Siguiente</button>
-          <button id="expandPlayerBtn" class="secondary-btn">Ampliar</button>
           <button id="fullscreenBtn" class="primary-btn">Pantalla completa</button>
-          <button id="openDriveBtn" class="secondary-btn">Abrir en Drive</button>
           <button id="copyLinkBtn" class="secondary-btn">Copiar enlace</button>
-          <button id="togglePlayerBtn" class="secondary-btn">Usar Drive preview</button>
         </div>
       </div>
     </section>
