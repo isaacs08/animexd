@@ -173,6 +173,10 @@ main {
   aspect-ratio: 16 / 9;
 }
 
+.player-shell.drive-mode {
+  background: #050505;
+}
+
 iframe {
   width: 100%;
   height: 100%;
@@ -566,9 +570,43 @@ body.cinema-lock {
   backdrop-filter: blur(10px);
 }
 
+.expand-player {
+  position: absolute;
+  z-index: 30;
+  left: 0.8rem;
+  bottom: 0.8rem;
+  width: auto;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+  font-size: 0.82rem;
+}
+
+.player-shell.cinema-mode .expand-player {
+  display: none;
+}
+
 @media (max-width: 700px) {
+  main {
+    padding-inline: clamp(0.75rem, 4vw, 1.25rem);
+  }
+
   .player-shell {
     border-radius: 1rem;
+  }
+
+  .player-shell.drive-mode {
+    width: 100%;
+    height: min(62dvh, 34rem);
+    min-height: 18rem;
+    aspect-ratio: auto;
+    border-radius: 1.1rem;
+  }
+
+  .player-shell.drive-mode .drive-player {
+    width: 100%;
+    height: 100%;
   }
 
   .hero-info h1 {
@@ -577,5 +615,12 @@ body.cinema-lock {
 
   .hero-buttons button {
     min-height: 3.25rem;
+  }
+
+  .expand-player {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.6rem;
   }
 }

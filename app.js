@@ -42,6 +42,7 @@ const dom = {
   nativePlayer: document.getElementById("nativePlayer"),
   player: document.getElementById("videoPlayer"),
   exitCinemaBtn: document.getElementById("exitCinemaBtn"),
+  expandPlayerBtn: document.getElementById("expandPlayerBtn"),
   fullscreenBtn: document.getElementById("fullscreenBtn"),
   togglePlayerBtn: document.getElementById("togglePlayerBtn"),
   prevEpisodeBtn: document.getElementById("prevEpisodeBtn"),
@@ -90,6 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   dom.fullscreenBtn.addEventListener("click", enterBestFullscreen);
+  dom.expandPlayerBtn.addEventListener("click", enterBestFullscreen);
   dom.exitCinemaBtn.addEventListener("click", exitCinemaMode);
   dom.prevEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(-1));
   dom.nextEpisodeBtn.addEventListener("click", () => playAdjacentEpisode(1));
@@ -572,6 +574,8 @@ function playVideo(video, keepScroll = false, options = {}) {
 }
 
 function useNativeVideo(video) {
+  dom.playerShell.classList.remove("drive-mode");
+  dom.playerShell.classList.add("native-mode");
   dom.player.removeAttribute("src");
   dom.player.classList.add("hidden");
 
@@ -586,6 +590,8 @@ function useNativeVideo(video) {
 }
 
 function useDriveIframe(video) {
+  dom.playerShell.classList.remove("native-mode");
+  dom.playerShell.classList.add("drive-mode");
   dom.nativePlayer.pause();
   dom.nativePlayer.removeAttribute("src");
   dom.nativePlayer.load();
