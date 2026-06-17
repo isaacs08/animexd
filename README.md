@@ -171,3 +171,30 @@ Episodio 01.mp4
 ## Nota importante
 
 Usa este proyecto solo con videos propios o contenido que tengas permiso de compartir. Si la página queda pública, cualquiera con el enlace podría acceder.
+
+
+## Reproductor móvil
+
+Esta versión usa por defecto un reproductor HTML5 `<video>` alimentado por Google Drive API:
+
+```text
+https://www.googleapis.com/drive/v3/files/FILE_ID?alt=media&key=API_KEY
+```
+
+Esto mejora la compatibilidad con pantalla completa en celulares, especialmente iPhone.
+
+Si algún archivo no carga en el reproductor nativo, la app cambia automáticamente al reproductor de vista previa de Google Drive. También puedes cambiar manualmente con el botón "Usar Drive preview" / "Usar reproductor móvil".
+
+
+## Modo automático de reproductor
+
+Esta versión usa `PLAYER_MODE: "auto"` en `config.js`.
+
+Con esa configuración:
+
+```text
+PC / laptop: usa Drive preview, igual que la primera versión.
+Celular / tablet: usa reproductor HTML5 nativo para mejorar pantalla completa.
+```
+
+También queda disponible un botón manual para cambiar entre ambos reproductores.

@@ -8,14 +8,41 @@ const state = {
   flatVideos: [],
   currentVideo: null,
   activeSeries: "all",
-  query: ""
+  query: "",
+  playerMode: getInitialPlayerMode(),
+  autoSelectedPlayer: true
 };
+
+function getInitialPlayerMode() {
+  const configuredMode = String(CONFIG.PLAYER_MODE || "auto").toLowerCase();
+
+  if (configuredMode === "drive") return "drive";
+  if (configuredMode === "native") return "native";
+
+  return isProbablyMobileOrTablet() ? "native" : "drive";
+}
+
+function isProbablyMobileOrTablet() {
+  const userAgent = navigator.userAgent || navigator.vendor || "";
+
+  const mobileByUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const iPadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+  const smallScreen = window.matchMedia?.("(max-width: 920px)")?.matches ?? false;
+
+  return mobileByUA || iPadDesktopMode || (coarsePointer && smallScreen);
+}
 
 const dom = {
   appTitle: document.getElementById("appTitle"),
   statusBox: document.getElementById("statusBox"),
   hero: document.getElementById("hero"),
+  playerShell: document.getElementById("playerShell"),
+  nativePlayer: document.getElementById("nativePlayer"),
   player: document.getElementById("videoPlayer"),
+  exitCinemaBtn: document.getElementById("exitCinemaBtn"),
+  fullscreenBtn: document.getElementById("fullscreenBtn"),
+  togglePlayerBtn: document.getElementById("togglePlayerBtn"),
   nowPlayingSeries: document.getElementById("nowPlayingSeries"),
   nowPlayingTitle: document.getElementById("nowPlayingTitle"),
   nowPlayingMeta: document.getElementById("nowPlayingMeta"),
@@ -57,6 +84,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  dom.fullscreenBtn.addEventListener("click", enterBestFullscreen);
+  dom.exitCinemaBtn.addEventListener("click", exitCinemaMode);
+
+  dom.togglePlayerBtn.addEventListener("click", () => {
+    state.autoSelectedPlayer = false;
+    state.playerMode = state.playerMode === "native" ? "drive" : "native";
+    updatePlayerModeButton();
+
+    if (state.currentVideo) {
+      playVideo(state.currentVideo, true);
+    }
+  });
+
+  dom.nativePlayer.addEventListener("error", () => {
+    if (state.playerMode !== "native" || !state.currentVideo) return;
+
+    state.playerMode = "drive";
+    updatePlayerModeButton();
+    playVideo(state.currentVideo, true);
+    showTemporaryStatus("El reproductor nativo no pudo cargar este archivo. Cambié automáticamente a Drive preview.");
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      exitCinemaMode();
+    }
+  });
+
+  document.addEventListener("fullscreenchange", syncFullscreenUI);
+  document.addEventListener("webkitfullscreenchange", syncFullscreenUI);
+
+  updatePlayerModeButton();
   loadLibrary();
 });
 
@@ -217,7 +276,6 @@ function extractEpisodeNumber(name) {
   const numbers = [...name.matchAll(/\d{1,4}/g)].map((match) => Number(match[0]));
   if (numbers.length === 0) return 999999;
 
-  // Usualmente el último número del nombre es el capítulo.
   return numbers[numbers.length - 1];
 }
 
@@ -352,16 +410,22 @@ function createEpisodeCard(video) {
   return card;
 }
 
-function playVideo(video) {
+function playVideo(video, keepScroll = false) {
   state.currentVideo = video;
 
-  dom.player.src = getDrivePreviewUrl(video.id);
+  if (state.playerMode === "native") {
+    useNativeVideo(video);
+  } else {
+    useDriveIframe(video);
+  }
+
   dom.nowPlayingSeries.textContent = video.seriesName;
   dom.nowPlayingTitle.textContent = video.title;
 
   const episodePart = video.episodeNumber === 999999 ? "" : `Capítulo ${video.episodeNumber}`;
   const sizePart = video.size ? ` · ${formatBytes(video.size)}` : "";
-  dom.nowPlayingMeta.textContent = `${episodePart}${sizePart}`.replace(/^ · /, "") || "Video desde Google Drive";
+  const modePart = state.playerMode === "native" ? " · Reproductor nativo" : " · Drive preview";
+  dom.nowPlayingMeta.textContent = `${episodePart}${sizePart}${modePart}`.replace(/^ · /, "") || "Video desde Google Drive";
 
   dom.hero.classList.remove("hidden");
 
@@ -369,7 +433,108 @@ function playVideo(video) {
     card.classList.toggle("active", card.dataset.videoId === video.id);
   });
 
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (!keepScroll) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
+function useNativeVideo(video) {
+  dom.player.removeAttribute("src");
+  dom.player.classList.add("hidden");
+
+  dom.nativePlayer.classList.remove("hidden");
+  dom.nativePlayer.poster = video.thumbnail;
+
+  const mediaUrl = getDriveMediaUrl(video.id);
+  if (dom.nativePlayer.src !== mediaUrl) {
+    dom.nativePlayer.src = mediaUrl;
+    dom.nativePlayer.load();
+  }
+}
+
+function useDriveIframe(video) {
+  dom.nativePlayer.pause();
+  dom.nativePlayer.removeAttribute("src");
+  dom.nativePlayer.load();
+  dom.nativePlayer.classList.add("hidden");
+
+  dom.player.classList.remove("hidden");
+  dom.player.src = getDrivePreviewUrl(video.id);
+}
+
+function updatePlayerModeButton() {
+  if (!dom.togglePlayerBtn) return;
+
+  const currentLabel = state.playerMode === "native"
+    ? "Móvil nativo"
+    : "Drive preview";
+
+  const nextAction = state.playerMode === "native"
+    ? "Usar Drive preview"
+    : "Usar reproductor móvil";
+
+  dom.togglePlayerBtn.textContent = `${nextAction} · actual: ${currentLabel}`;
+}
+
+async function enterBestFullscreen() {
+  const video = dom.nativePlayer;
+
+  // En iPhone, el fullscreen más confiable suele ser el del elemento <video>.
+  if (state.playerMode === "native" && video && !video.classList.contains("hidden")) {
+    try {
+      if (typeof video.webkitEnterFullscreen === "function") {
+        video.webkitEnterFullscreen();
+        return;
+      }
+    } catch (error) {
+      console.warn("webkitEnterFullscreen falló, probando alternativas.", error);
+    }
+
+    try {
+      if (typeof video.requestFullscreen === "function") {
+        await video.requestFullscreen();
+        return;
+      }
+    } catch (error) {
+      console.warn("requestFullscreen en video falló, probando contenedor.", error);
+    }
+  }
+
+  try {
+    if (dom.playerShell.requestFullscreen) {
+      await dom.playerShell.requestFullscreen();
+      return;
+    }
+
+    if (dom.playerShell.webkitRequestFullscreen) {
+      dom.playerShell.webkitRequestFullscreen();
+      return;
+    }
+  } catch (error) {
+    console.warn("Fullscreen del contenedor falló, usando modo cine.", error);
+  }
+
+  enterCinemaMode();
+}
+
+function enterCinemaMode() {
+  dom.playerShell.classList.add("cinema-mode");
+  dom.exitCinemaBtn.classList.remove("hidden");
+  document.body.classList.add("cinema-lock");
+}
+
+function exitCinemaMode() {
+  dom.playerShell.classList.remove("cinema-mode");
+  dom.exitCinemaBtn.classList.add("hidden");
+  document.body.classList.remove("cinema-lock");
+}
+
+function syncFullscreenUI() {
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (!isFullscreen) {
+    exitCinemaMode();
+  }
 }
 
 function getDrivePreviewUrl(fileId) {
@@ -380,6 +545,11 @@ function getDriveViewUrl(fileId) {
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
+function getDriveMediaUrl(fileId) {
+  const key = encodeURIComponent(CONFIG.GOOGLE_API_KEY);
+  return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&key=${key}`;
+}
+
 function getThumbnailUrl(fileId) {
   return `https://drive.google.com/thumbnail?id=${fileId}&sz=w700`;
 }
@@ -387,6 +557,17 @@ function getThumbnailUrl(fileId) {
 function setStatus(message) {
   dom.statusBox.classList.remove("hidden", "error");
   dom.statusBox.textContent = message.trim();
+}
+
+function showTemporaryStatus(message) {
+  dom.statusBox.classList.remove("hidden", "error");
+  dom.statusBox.textContent = message.trim();
+
+  setTimeout(() => {
+    if (state.flatVideos.length > 0) {
+      hideStatus();
+    }
+  }, 3800);
 }
 
 function setError(message) {
@@ -409,9 +590,14 @@ function resetUI() {
   state.activeSeries = "all";
 
   dom.player.removeAttribute("src");
+  dom.nativePlayer.pause();
+  dom.nativePlayer.removeAttribute("src");
+  dom.nativePlayer.load();
+
   dom.hero.classList.add("hidden");
   dom.seriesNav.classList.add("hidden");
   dom.library.innerHTML = "";
+  exitCinemaMode();
   setStatus("Cargando biblioteca desde Google Drive...");
 }
 

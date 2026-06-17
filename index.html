@@ -32,14 +32,29 @@
     </section>
 
     <section id="hero" class="hero hidden">
-      <div class="player-shell">
+      <div class="player-shell" id="playerShell">
+        <video
+          id="nativePlayer"
+          class="native-player hidden"
+          title="Reproductor AnimeXD"
+          controls
+          playsinline
+          webkit-playsinline
+          preload="metadata">
+        </video>
+
         <iframe
           id="videoPlayer"
-          title="Reproductor AnimeXD"
-          allow="autoplay; fullscreen"
+          class="drive-player hidden"
+          title="Reproductor AnimeXD Drive"
+          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           allowfullscreen
+          webkitallowfullscreen
+          mozallowfullscreen
           loading="lazy">
         </iframe>
+
+        <button id="exitCinemaBtn" class="exit-cinema hidden">Salir</button>
       </div>
 
       <div class="hero-info">
@@ -47,8 +62,10 @@
         <h1 id="nowPlayingTitle">Selecciona un capítulo</h1>
         <p id="nowPlayingMeta">Los capítulos se cargan dinámicamente desde Drive.</p>
         <div class="hero-buttons">
-          <button id="openDriveBtn" class="primary-btn">Abrir en Drive</button>
+          <button id="fullscreenBtn" class="primary-btn">Pantalla completa</button>
+          <button id="openDriveBtn" class="secondary-btn">Abrir en Drive</button>
           <button id="copyLinkBtn" class="secondary-btn">Copiar enlace</button>
+          <button id="togglePlayerBtn" class="secondary-btn">Usar Drive preview</button>
         </div>
       </div>
     </section>

@@ -26,5 +26,10 @@ window.ANIMEXD_CONFIG = {
 
   // Si tienes videos MP4 directamente en la carpeta principal,
   // se mostrarán dentro de una sección llamada "Sin serie".
-  SHOW_DIRECT_ROOT_FILES: true
+  SHOW_DIRECT_ROOT_FILES: true,
+
+  // "auto": PC usa Drive preview; celular/tablet usa reproductor nativo.
+  // "drive": fuerza el iframe de Google Drive.
+  // "native": fuerza el reproductor HTML5.
+  PLAYER_MODE: "auto"
 };
