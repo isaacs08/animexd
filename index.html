@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AnimeXD</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="background-glow"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▶</span>
+      <span id="appTitle">AnimeXD</span>
+    </div>
+
+    <div class="top-actions">
+      <input
+        id="searchInput"
+        type="search"
+        placeholder="Buscar anime o capítulo..."
+        autocomplete="off"
+      />
+      <button id="reloadBtn" title="Recargar biblioteca">Recargar</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="statusBox" class="status-box">
+      Cargando biblioteca desde Google Drive...
+    </section>
+
+    <section id="hero" class="hero hidden">
+      <div class="player-shell">
+        <iframe
+          id="videoPlayer"
+          title="Reproductor AnimeXD"
+          allow="autoplay; fullscreen"
+          allowfullscreen
+          loading="lazy">
+        </iframe>
+      </div>
+
+      <div class="hero-info">
+        <p id="nowPlayingSeries" class="eyebrow">Reproduciendo</p>
+        <h1 id="nowPlayingTitle">Selecciona un capítulo</h1>
+        <p id="nowPlayingMeta">Los capítulos se cargan dinámicamente desde Drive.</p>
+        <div class="hero-buttons">
+          <button id="openDriveBtn" class="primary-btn">Abrir en Drive</button>
+          <button id="copyLinkBtn" class="secondary-btn">Copiar enlace</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="seriesNav" class="series-nav hidden"></section>
+
+    <section id="library" class="library"></section>
+  </main>
+
+  <footer>
+    <p>
+      AnimeXD · Reproductor personal con Google Drive + GitHub Pages.
+    </p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
