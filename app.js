@@ -728,10 +728,21 @@ function isWatched(video) {
 }
 
 function getContinueVideos() {
-  return state.watchHistory
-    .map((entry) => state.flatVideos.find((video) => video.id === entry.id))
-    .filter(Boolean)
-    .slice(0, 12);
+  const seenSeries = new Set();
+  const videos = [];
+
+  for (const entry of state.watchHistory) {
+    const video = state.flatVideos.find((item) => item.id === entry.id);
+
+    if (!video || seenSeries.has(video.seriesSlug)) continue;
+
+    seenSeries.add(video.seriesSlug);
+    videos.push(video);
+
+    if (videos.length >= 12) break;
+  }
+
+  return videos;
 }
 
 function loadWatchHistory() {
